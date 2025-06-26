@@ -21,7 +21,7 @@ class CacheService(ds: RedisDataSource, reactive: RedisDataSource) {
         secretCommands.get(key)
             ?.let { value -> Encryption.decrypt(value, encryptionKey) }
             ?.also { keyCommands.del(key) }
-            ?: "Secret has been deleted."
+            ?: "Secret does not exist."
 
     fun set(key: String, value: String) =
         secretCommands.set(key, Encryption.encrypt(value, encryptionKey))
