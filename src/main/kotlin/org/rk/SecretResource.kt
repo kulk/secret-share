@@ -23,12 +23,11 @@ class SecretResource {
     @field:Default
     private lateinit var service: CacheService
 
-    @field:Location("pub/secretForm")
-    lateinit var secretForm: Template
+    @field:Location("secretForm")
+    private lateinit var secretForm: Template
 
-    @field:Location("pub/secretSuccess")
-    lateinit var secretSuccess: Template
-
+    @field:Location("secretSuccess")
+    private lateinit var secretSuccess: Template
 
     @GET
     @Produces(MediaType.TEXT_HTML)
@@ -46,7 +45,6 @@ class SecretResource {
     @Produces(MediaType.TEXT_HTML)
     fun handleSecret(formData: MultivaluedMap<String, String>): TemplateInstance {
         val secret: String? = formData.getFirst("secret")
-
         if (secret == null || secret.trim { it <= ' ' }.isEmpty()) {
             return secretForm.data("error", "Secret is required")
                 .data("secret", secret)
