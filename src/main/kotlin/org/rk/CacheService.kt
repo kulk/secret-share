@@ -11,7 +11,10 @@ import org.eclipse.microprofile.config.inject.ConfigProperty
 class CacheService(ds: RedisDataSource, reactive: RedisDataSource) {
 
     private val keyCommands: KeyCommands<String> = reactive.key()
+
     private var secretCommands: ValueCommands<String, String> = ds.value(String::class.java)
+
+    private val EXPIRATION_SECONDS = 345600L // 345600 seconds is 4 days
 
     @field:ConfigProperty(name = "encryption.key")
     private lateinit var encryptionKey: String
@@ -24,5 +27,5 @@ class CacheService(ds: RedisDataSource, reactive: RedisDataSource) {
             ?: "Secret does not exist."
 
     fun set(key: String, value: String) =
-        secretCommands.set(key, Encryption.encrypt(value, encryptionKey))
+        secretCommands.setex(key, EXPIRATION_SECONDS, Encryption.encrypt(value, encryptionKey))
 }
