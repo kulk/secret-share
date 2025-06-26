@@ -1,14 +1,28 @@
 package org.rk
 
+import jakarta.enterprise.inject.Default
+import jakarta.inject.Inject
 import jakarta.ws.rs.GET
+import jakarta.ws.rs.POST
 import jakarta.ws.rs.Path
-import jakarta.ws.rs.Produces
-import jakarta.ws.rs.core.MediaType
+import java.util.*
 
-@Path("/hello")
+
+@Path("/secrets")
 class SecretResource {
 
+    @field:Inject
+    @field:Default
+    private lateinit var service: CacheService
+
+
+    @POST
+    fun create(value: String) = UUID.randomUUID().toString()
+        .also { uuid -> service.set(uuid, value) }
+        .let { uuid -> "http://localhost:8080/secrets/$uuid" }
+
     @GET
-    @Produces(MediaType.TEXT_PLAIN)
-    fun hello() = "Hello from Quarkus REST"
+    @Path("/{key}")
+    fun get(key: String) = service.get(key)
+
 }
