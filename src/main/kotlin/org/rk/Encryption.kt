@@ -4,6 +4,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
 import javax.crypto.Cipher
+import javax.crypto.Mac
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
@@ -11,57 +12,65 @@ object Encryption {
 
     private const val ALGORITHM = "AES"
     private const val TRANSFORMATION = "AES/CBC/PKCS5Padding"
+    private const val HMAC_ALGORITHM = "HmacSHA256"
     private const val IV_SIZE = 16
+    private const val HMAC_SIZE = 32 // bytes
 
-    /**
-     * Encrypts a string using AES encryption with the provided key
-     * @param plainText The string to encrypt
-     * @param key The encryption key (will be hashed to ensure proper length)
-     * @return Base64 encoded encrypted string with IV prepended
-     */
-    fun encrypt(plainText: String, key: String): String =
-        createSecretKey(key).let { secretKey ->
-            generateRandomIv().let { iv ->
-                Cipher.getInstance(TRANSFORMATION)
-                    .apply { init(Cipher.ENCRYPT_MODE, secretKey, IvParameterSpec(iv)) }
-                    .doFinal(plainText.toByteArray(Charsets.UTF_8))
-                    .let { encryptedBytes -> iv + encryptedBytes }
-                    .let(Base64.getEncoder()::encodeToString)
-            }
-        }
+    fun encrypt(plainText: String, key: String): String {
+        val secretKey = createAesKey(key)
+        val hmacKey = createHmacKey(key)
+        val iv = generateRandomIv()
 
-    /**
-     * Decrypts a string using AES decryption with the provided key
-     * @param encryptedText Base64 encoded encrypted string with IV prepended
-     * @param key The decryption key (same as used for encryption)
-     * @return The decrypted plain text string
-     */
-    fun decrypt(encryptedText: String, key: String): String =
-        Base64.getDecoder().decode(encryptedText).let { encryptedWithIv ->
-            val iv = encryptedWithIv.sliceArray(0 until IV_SIZE)
-            val encryptedBytes = encryptedWithIv.sliceArray(IV_SIZE until encryptedWithIv.size)
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey, IvParameterSpec(iv))
+        val cipherText = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
 
-            createSecretKey(key).let { secretKey ->
-                Cipher.getInstance(TRANSFORMATION)
-                    .apply { init(Cipher.DECRYPT_MODE, secretKey, IvParameterSpec(iv)) }
-                    .doFinal(encryptedBytes)
-                    .let { String(it, Charsets.UTF_8) }
-            }
-        }
+        val combined = iv + cipherText
+        val hmac = computeHmac(hmacKey, combined)
 
-    /**
-     * Creates a SecretKeySpec from a string key by hashing it with SHA-256
-     * This ensures the key is always the correct length (32 bytes for AES-256)
-     */
-    private fun createSecretKey(key: String): SecretKeySpec =
-        MessageDigest.getInstance("SHA-256")
+        val finalPayload = combined + hmac
+        return Base64.getEncoder().encodeToString(finalPayload)
+    }
+
+    fun decrypt(encryptedText: String, key: String): String {
+        val decoded = Base64.getDecoder().decode(encryptedText)
+        if (decoded.size < IV_SIZE + HMAC_SIZE) throw IllegalArgumentException("Invalid payload")
+
+        val iv = decoded.sliceArray(0 until IV_SIZE)
+        val cipherText = decoded.sliceArray(IV_SIZE until decoded.size - HMAC_SIZE)
+        val hmac = decoded.sliceArray(decoded.size - HMAC_SIZE until decoded.size)
+
+        val combined = iv + cipherText
+        val hmacKey = createHmacKey(key)
+        val expectedHmac = computeHmac(hmacKey, combined)
+
+        if (!hmac.contentEquals(expectedHmac)) throw SecurityException("HMAC verification failed")
+
+        val secretKey = createAesKey(key)
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.DECRYPT_MODE, secretKey, IvParameterSpec(iv))
+        val plainBytes = cipher.doFinal(cipherText)
+        return String(plainBytes, Charsets.UTF_8)
+    }
+
+    private fun createAesKey(key: String): SecretKeySpec {
+        val hashed = MessageDigest.getInstance("SHA-256")
             .digest(key.toByteArray(Charsets.UTF_8))
-            .let { SecretKeySpec(it, ALGORITHM) }
+        return SecretKeySpec(hashed, ALGORITHM)
+    }
 
-    /**
-     * Generates a random IV for encryption
-     */
-    private fun generateRandomIv() =
+    private fun createHmacKey(key: String): SecretKeySpec {
+        val hmacSeed = (key + ":hmac").toByteArray(Charsets.UTF_8)
+        val hashed = MessageDigest.getInstance("SHA-256").digest(hmacSeed)
+        return SecretKeySpec(hashed, HMAC_ALGORITHM)
+    }
+
+    private fun computeHmac(key: SecretKeySpec, data: ByteArray): ByteArray {
+        val mac = Mac.getInstance(HMAC_ALGORITHM)
+        mac.init(key)
+        return mac.doFinal(data)
+    }
+
+    private fun generateRandomIv(): ByteArray =
         ByteArray(IV_SIZE).apply { SecureRandom().nextBytes(this) }
-
 }
