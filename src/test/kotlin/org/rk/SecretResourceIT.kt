@@ -3,4 +3,4 @@ package org.rk
 import io.quarkus.test.junit.QuarkusIntegrationTest
 
 @QuarkusIntegrationTest
-class GreetingResourceIT : GreetingResourceTest()
+class SecretResourceIT : SecretResourceTest()

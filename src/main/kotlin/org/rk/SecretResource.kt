@@ -13,6 +13,8 @@ import jakarta.ws.rs.Path
 import jakarta.ws.rs.Produces
 import jakarta.ws.rs.core.MediaType
 import jakarta.ws.rs.core.MultivaluedMap
+import org.jboss.resteasy.reactive.common.util.QuarkusMultivaluedHashMap
+import java.util.LinkedList
 import java.util.UUID
 
 
@@ -50,6 +52,10 @@ class SecretResource {
                 .data("secret", secret)
         }
         val link = createLink(secret)
+        val new  = QuarkusMultivaluedHashMap<String, String>()
+        val linkedList = LinkedList<String>()
+        linkedList.push("my-secret")
+        new.put("secret", linkedList)
 
         return secretSuccess.data("link", link)
     }
